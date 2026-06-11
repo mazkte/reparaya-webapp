@@ -218,8 +218,8 @@ export const MOCK_DASHBOARD: DashboardMetrics = {
 };
 
 export const MOCK_USUARIOS: Usuario[] = [
-  { id: '1', nombre: 'María Aldana', email: 'autoridad1@reparaya.pe', rol: 'ROLE_AUTORIDAD', estado: 'ACTIVO', keycloakId: 'kc-1' },
-  { id: '2', nombre: 'José Sánchez', email: 'supervisor1@reparaya.pe', rol: 'ROLE_SUPERVISOR', estado: 'ACTIVO', keycloakId: 'kc-2' },
-  { id: '3', nombre: 'Roberto Torres', email: 'empresa1@reparaya.pe', rol: 'ROLE_EMPRESA', estado: 'ACTIVO', keycloakId: 'kc-3' },
-  { id: '4', nombre: 'Admin Sistema', email: 'admin@reparaya.pe', rol: 'ROLE_ADMIN', estado: 'ACTIVO', keycloakId: 'kc-4' }
+  { id: '1', fullName: 'María Aldana', email: 'autoridad1@reparaya.pe', rol: 'ROLE_AUTORIDAD', status: 'ACTIVE', keycloakId: 'kc-1' },
+  { id: '2', fullName: 'José Sánchez', email: 'supervisor1@reparaya.pe', rol: 'ROLE_SUPERVISOR', status: 'ACTIVE', keycloakId: 'kc-2' },
+  { id: '3', fullName: 'Roberto Torres', email: 'empresa1@reparaya.pe', rol: 'ROLE_EMPRESA', status: 'ACTIVE', keycloakId: 'kc-3' },
+  { id: '4', fullName: 'Admin Sistema', email: 'admin@reparaya.pe', rol: 'ROLE_ADMIN', status: 'ACTIVE', keycloakId: 'kc-4' }
 ];

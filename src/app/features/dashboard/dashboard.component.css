@@ -1,0 +1,125 @@
+.dashboard { display: flex; flex-direction: column; gap: 20px; }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .metric-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px !important;
+    }
+
+    .metric-card mat-card-content { display: flex; align-items: center; gap: 14px; }
+
+    .metric-icon {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .metric-val {
+      display: block;
+      font-size: 26px;
+      font-weight: 600;
+      color: #1a1a2e;
+      line-height: 1;
+    }
+    .metric-val.warn { color: #8a6d2d; }
+    .metric-val.info { color: #2d4a8a; }
+    .metric-val.success { color: #2d8a6a; }
+
+    .metric-label {
+      display: block;
+      font-size: 12px;
+      color: #6b6b8a;
+      margin-top: 3px;
+    }
+
+    .metric-sub {
+      display: block;
+      font-size: 11px;
+      color: #aaa;
+      margin-top: 2px;
+    }
+
+    .trend-up { color: #2d8a6a !important; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .map-container {
+      height: 220px;
+      background: #eef1f9;
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .map-legend {
+      display: flex;
+      gap: 14px;
+      margin-top: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: #6b6b8a;
+    }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .dot.red { background: #E24B4A; }
+    .dot.amber { background: #EF9F27; }
+    .dot.green { background: #1D9E75; }
+
+    .empresa-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #f0efea;
+    }
+    .empresa-row:last-child { border-bottom: none; }
+
+    .empresa-info { flex: 1; }
+    .empresa-name { display: block; font-size: 13px; font-weight: 500; }
+    .empresa-esp { display: block; font-size: 10px; color: #6b6b8a; }
+
+    .empresa-cupo { width: 100px; }
+    .cupo-txt { display: block; font-size: 10px; color: #6b6b8a; text-align: right; margin-bottom: 4px; }
+    .cupo-bar { height: 6px; border-radius: 3px; }
+
+    .chip {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+    .chip-vialidad { background: #eeedfe; color: #3c3489; }
+    .chip-alumbrado { background: #fff8e8; color: #7a5c00; }
+    .chip-agua_potable { background: #eef1f9; color: #2d4a8a; }
+    .chip-alcantarillado { background: #fce8e8; color: #791f1f; }
+    .chip-otro { background: #f1efea; color: #555; }
+
+    .warn-icon { color: #E24B4A; font-size: 18px; margin-left: 6px; vertical-align: middle; }
+    .w-full { width: 100%; }
+
+    @media (max-width: 900px) {
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+      .two-col { grid-template-columns: 1fr; }
+    }

@@ -73,10 +73,10 @@ export interface EmpresaServicio {
 
 export interface Usuario {
   id: string;
-  nombre: string;
+  fullName: string;
   email: string;
   rol: RolEnum;
-  estado: string;
+  status: string;
   keycloakId: string;
 }
 

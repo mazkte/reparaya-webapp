@@ -1,6 +1,6 @@
 // src/app/features/admin/admin-usuarios.component.ts
 import {
-  Component, OnInit, inject, signal, computed, ChangeDetectionStrategy
+  Component, OnInit, inject, signal, computed, ChangeDetectionStrategy, ChangeDetectorRef
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormControl, FormGroup, Validators } from '@angular/forms';
@@ -15,11 +15,12 @@ import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
+import { UsuarioService, CrearUsuarioRequest } from '../../core/services/user.service';
 import { Usuario, RolEnum } from '../../shared/models';
-import { MOCK_USUARIOS } from '../../core/services/mock-data';
+import { NuevoUsuarioModalComponent } from './nuevo-usuario-modal.component';
 
 @Component({
   selector: 'app-admin-usuarios',
@@ -29,8 +30,8 @@ import { MOCK_USUARIOS } from '../../core/services/mock-data';
     CommonModule, FormsModule, ReactiveFormsModule,
     MatCardModule, MatButtonModule, MatIconModule, MatInputModule,
     MatFormFieldModule, MatSelectModule, MatTableModule, MatDialogModule,
-    MatSnackBarModule, MatTooltipModule, MatChipsModule, MatDividerModule,
-    MatProgressSpinnerModule
+    MatSnackBarModule, MatTooltipModule, MatChipsModule,
+    MatProgressSpinnerModule, MatProgressBarModule
   ],
   template: `
     <div class="admin-usuarios">
@@ -39,13 +40,18 @@ import { MOCK_USUARIOS } from '../../core/services/mock-data';
       <div class="page-header">
         <div>
           <h1>Gestión de usuarios</h1>
-          <p>{{ usuarios().length }} usuarios registrados en el sistema</p>
+          <p>{{ usuariosFiltrados().length }} usuarios encontrados</p>
         </div>
-        <button mat-flat-button color="primary" (click)="mostrarFormulario.set(!mostrarFormulario())">
-          <mat-icon>{{ mostrarFormulario() ? 'close' : 'person_add' }}</mat-icon>
-          {{ mostrarFormulario() ? 'Cancelar' : 'Nuevo usuario' }}
+        <button mat-flat-button color="primary" (click)="abrirModalNuevoUsuario()">
+          <mat-icon>person_add</mat-icon>
+          Nuevo usuario
         </button>
       </div>
+
+      <!-- LOADING BAR global -->
+      @if (loading()) {
+        <mat-progress-bar mode="indeterminate" color="primary"/>
+      }
 
       <!-- MÉTRICAS -->
       <div class="metrics-row">
@@ -62,60 +68,6 @@ import { MOCK_USUARIOS } from '../../core/services/mock-data';
         }
       </div>
 
-      <!-- FORMULARIO NUEVO USUARIO -->
-      @if (mostrarFormulario()) {
-        <mat-card class="form-card">
-          <mat-card-header>
-            <mat-card-title>
-              <mat-icon>person_add</mat-icon>
-              Crear nuevo usuario
-            </mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <form [formGroup]="nuevoUsuarioForm" (ngSubmit)="crearUsuario()" class="user-form">
-              <div class="form-row">
-                <mat-form-field appearance="outline">
-                  <mat-label>Nombre completo</mat-label>
-                  <input matInput formControlName="nombre" placeholder="Ej. María Aldana">
-                  @if (nuevoUsuarioForm.get('nombre')?.hasError('required') && nuevoUsuarioForm.get('nombre')?.touched) {
-                    <mat-error>El nombre es requerido</mat-error>
-                  }
-                </mat-form-field>
-                <mat-form-field appearance="outline">
-                  <mat-label>Email institucional</mat-label>
-                  <input matInput formControlName="email" placeholder="usuario@muni.pe" type="email">
-                  @if (nuevoUsuarioForm.get('email')?.hasError('email') && nuevoUsuarioForm.get('email')?.touched) {
-                    <mat-error>Email inválido</mat-error>
-                  }
-                </mat-form-field>
-              </div>
-              <div class="form-row">
-                <mat-form-field appearance="outline">
-                  <mat-label>Rol</mat-label>
-                  <mat-select formControlName="rol">
-                    @for (r of roles; track r.value) {
-                      <mat-option [value]="r.value">{{ r.label }}</mat-option>
-                    }
-                  </mat-select>
-                </mat-form-field>
-                <mat-form-field appearance="outline">
-                  <mat-label>Contraseña temporal</mat-label>
-                  <input matInput formControlName="password" type="password" placeholder="Mín. 8 caracteres">
-                </mat-form-field>
-              </div>
-              <div class="form-actions">
-                <button mat-flat-button color="primary" type="submit" [disabled]="nuevoUsuarioForm.invalid || saving()">
-                  @if (saving()) { <mat-spinner diameter="18" style="display:inline-block"/> }
-                  @else { <mat-icon>check</mat-icon> }
-                  Crear usuario
-                </button>
-                <button mat-button type="button" (click)="mostrarFormulario.set(false)">Cancelar</button>
-              </div>
-            </form>
-          </mat-card-content>
-        </mat-card>
-      }
-
       <!-- FILTROS -->
       <mat-card class="filter-card">
         <div class="filters">
@@ -123,6 +75,11 @@ import { MOCK_USUARIOS } from '../../core/services/mock-data';
             <mat-label>Buscar usuario</mat-label>
             <mat-icon matPrefix>search</mat-icon>
             <input matInput [formControl]="searchCtrl" placeholder="Nombre o email...">
+            @if (searchCtrl.value) {
+              <button matSuffix mat-icon-button (click)="searchCtrl.setValue('')">
+                <mat-icon>close</mat-icon>
+              </button>
+            }
           </mat-form-field>
           <mat-form-field appearance="outline" class="filter-field">
             <mat-label>Rol</mat-label>
@@ -138,93 +95,121 @@ import { MOCK_USUARIOS } from '../../core/services/mock-data';
 
       <!-- TABLA -->
       <mat-card class="table-card">
-        <table mat-table [dataSource]="usuariosFiltrados()" class="w-full">
+        @if (loading() && usuarios().length === 0) {
+          <div class="loading-center">
+            <mat-spinner diameter="36"/>
+            <span>Cargando usuarios...</span>
+          </div>
+        } @else {
+          <table mat-table [dataSource]="usuariosFiltrados()" class="w-full">
 
-          <ng-container matColumnDef="usuario">
-            <th mat-header-cell *matHeaderCellDef>Usuario</th>
-            <td mat-cell *matCellDef="let u">
-              <div class="user-cell">
-                <div class="user-avatar" [style.background]="getRolColor(u.rol).bg">
-                  <span [style.color]="getRolColor(u.rol).text">{{ getInitials(u.nombre) }}</span>
+            <ng-container matColumnDef="usuario">
+              <th mat-header-cell *matHeaderCellDef>Usuario</th>
+              <td mat-cell *matCellDef="let u">
+                <div class="user-cell">
+                  <div class="user-avatar" [style.background]="getRolColor(u.rol).bg">
+                    <span [style.color]="getRolColor(u.rol).text">{{ getInitials(u.fullName) }}</span>
+                  </div>
+                  <div>
+                    <span class="user-name">{{ u.fullName }}</span>
+                    <span class="user-email">{{ u.email }}</span>
+                  </div>
                 </div>
-                <div>
-                  <span class="user-name">{{ u.nombre }}</span>
-                  <span class="user-email">{{ u.email }}</span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="rol">
+              <th mat-header-cell *matHeaderCellDef>Rol</th>
+              <td mat-cell *matCellDef="let u">
+                <span class="chip" [ngClass]="'rol-' + u.rol">
+                  {{ getRolLabel(u.rol) }}
+                </span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="estado">
+              <th mat-header-cell *matHeaderCellDef>Estado</th>
+              <td mat-cell *matCellDef="let u">
+                <span class="chip" [ngClass]="u.status === 'ACTIVE' ? 'estado-activo' : 'estado-inactivo'">
+                  {{ u.status }}
+                </span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="acciones">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let u">
+                <div class="actions-cell">
+
+                  <!-- Cambiar rol -->
+                  <button mat-icon-button matTooltip="Cambiar rol"
+                          [disabled]="accionando() === u.id"
+                          (click)="abrirCambiarRol(u)">
+                    @if (accionando() === u.id + '_rol') {
+                      <mat-spinner diameter="18"/>
+                    } @else {
+                      <mat-icon>manage_accounts</mat-icon>
+                    }
+                  </button>
+
+                  <!-- Resetear contraseña -->
+                  <button mat-icon-button matTooltip="Resetear contraseña"
+                          [disabled]="accionando() === u.id + '_pass'"
+                          (click)="resetPassword(u)">
+                    @if (accionando() === u.id + '_pass') {
+                      <mat-spinner diameter="18"/>
+                    } @else {
+                      <mat-icon>lock_reset</mat-icon>
+                    }
+                  </button>
+
+                  <!-- Activar/Desactivar -->
+                  <button mat-icon-button
+                          [matTooltip]="u.estado === 'ACTIVE' ? 'Desactivar' : 'Activar'"
+                          [disabled]="accionando() === u.id + '_estado'"
+                          (click)="toggleEstado(u)">
+                    @if (accionando() === u.id + '_estado') {
+                      <mat-spinner diameter="18"/>
+                    } @else {
+                      <mat-icon>{{ u.estado === 'ACTIVE' ? 'person_off' : 'person' }}</mat-icon>
+                    }
+                  </button>
+
                 </div>
-              </div>
-            </td>
-          </ng-container>
+              </td>
+            </ng-container>
 
-          <ng-container matColumnDef="rol">
-            <th mat-header-cell *matHeaderCellDef>Rol</th>
-            <td mat-cell *matCellDef="let u">
-              <span class="chip" [ngClass]="'rol-' + u.rol">
-                <mat-icon class="chip-icon">{{ getRolIcon(u.rol) }}</mat-icon>
-                {{ getRolLabel(u.rol) }}
-              </span>
-            </td>
-          </ng-container>
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="user-row"></tr>
 
-          <ng-container matColumnDef="estado">
-            <th mat-header-cell *matHeaderCellDef>Estado</th>
-            <td mat-cell *matCellDef="let u">
-              <span class="chip" [ngClass]="u.estado === 'ACTIVO' ? 'estado-activo' : 'estado-inactivo'">
-                {{ u.estado }}
-              </span>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="acciones">
-            <th mat-header-cell *matHeaderCellDef></th>
-            <td mat-cell *matCellDef="let u">
-              <div class="actions-cell">
-                <button mat-icon-button matTooltip="Cambiar rol" (click)="editarRol(u)">
-                  <mat-icon>manage_accounts</mat-icon>
-                </button>
-                <button mat-icon-button matTooltip="Resetear contraseña" (click)="resetPassword(u)">
-                  <mat-icon>lock_reset</mat-icon>
-                </button>
-                <button mat-icon-button
-                        [matTooltip]="u.estado === 'ACTIVO' ? 'Desactivar' : 'Activar'"
-                        (click)="toggleEstado(u)">
-                  <mat-icon>{{ u.estado === 'ACTIVO' ? 'person_off' : 'person' }}</mat-icon>
-                </button>
-              </div>
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="user-row"></tr>
-
-          <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell no-data" [attr.colspan]="displayedColumns.length">
-              <mat-icon>search_off</mat-icon>
-              <p>No se encontraron usuarios</p>
-            </td>
-          </tr>
-        </table>
+            <tr class="mat-row" *matNoDataRow>
+              <td class="mat-cell no-data" [attr.colspan]="displayedColumns.length">
+                <mat-icon>search_off</mat-icon>
+                <p>No se encontraron usuarios</p>
+              </td>
+            </tr>
+          </table>
+        }
       </mat-card>
 
     </div>
   `,
   styles: [`
     .admin-usuarios { display: flex; flex-direction: column; gap: 16px; }
-    .page-header { display: flex; justify-content: space-between; align-items: flex-start;
+
+    .page-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
       h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; color: #1a1a2e; }
       p  { font-size: 13px; color: #6b6b8a; margin: 0; }
     }
 
+    mat-progress-bar { border-radius: 2px; }
+
     .metrics-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
     .metric-card { display: flex; align-items: center; gap: 12px; padding: 14px !important; }
-    .metric-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; mat-icon { font-size: 22px; } }
-    .m-val { display: block; font-size: 22px; font-weight: 600; color: #1a1a2e; }
+    .metric-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .m-val   { display: block; font-size: 22px; font-weight: 600; color: #1a1a2e; }
     .m-label { display: block; font-size: 11px; color: #6b6b8a; }
-
-    .form-card { border: 1px solid #2d4a8a !important; }
-    .form-card mat-card-title { display: flex; align-items: center; gap: 6px; color: #2d4a8a; }
-    .user-form { display: flex; flex-direction: column; gap: 4px; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .form-actions { display: flex; gap: 10px; padding-top: 8px; }
 
     .filter-card { padding: 16px !important; }
     .filters { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -234,17 +219,21 @@ import { MOCK_USUARIOS } from '../../core/services/mock-data';
     .table-card { overflow: hidden; padding: 0 !important; }
     .w-full { width: 100%; }
 
+    .loading-center {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 12px; padding: 48px; color: #6b6b8a; font-size: 13px;
+    }
+
     .user-cell { display: flex; align-items: center; gap: 10px; }
     .user-avatar {
       width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
       font-size: 12px; font-weight: 600;
     }
-    .user-name { display: block; font-size: 13px; font-weight: 500; color: #1a1a2e; }
+    .user-name  { display: block; font-size: 13px; font-weight: 500; color: #1a1a2e; }
     .user-email { display: block; font-size: 11px; color: #6b6b8a; }
 
     .actions-cell { display: flex; gap: 0; }
-
     .user-row:hover td { background: #f9f8f5; }
 
     .no-data { text-align: center; padding: 48px !important; color: #6b6b8a;
@@ -252,10 +241,8 @@ import { MOCK_USUARIOS } from '../../core/services/mock-data';
       p { margin: 0; }
     }
 
-    .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
-    .chip-icon { font-size: 12px; width: 12px; height: 12px; }
-
-    .rol-ROLE_AUTORIDAD { background: #eef1f9; color: #2d4a8a; }
+    .chip { display: inline-flex; align-items: center; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
+    .rol-ROLE_AUTORIDAD  { background: #eef1f9; color: #2d4a8a; }
     .rol-ROLE_SUPERVISOR { background: #fff8e8; color: #7a5c00; }
     .rol-ROLE_EMPRESA    { background: #eaf4ef; color: #2d7a5a; }
     .rol-ROLE_ADMIN      { background: #fce8e8; color: #791f1f; }
@@ -264,18 +251,22 @@ import { MOCK_USUARIOS } from '../../core/services/mock-data';
 
     ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
 
-    @media (max-width: 700px) {
-      .metrics-row { grid-template-columns: repeat(2,1fr); }
-      .form-row { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 700px) { .metrics-row { grid-template-columns: repeat(2,1fr); } }
   `]
 })
 export class AdminUsuariosComponent implements OnInit {
-  private snack = inject(MatSnackBar);
+  private usuarioService = inject(UsuarioService);
+  private dialog         = inject(MatDialog);
+  private snack          = inject(MatSnackBar);
+  private cdr            = inject(ChangeDetectorRef);
 
-  usuarios     = signal<Usuario[]>([...MOCK_USUARIOS]);
-  saving       = signal(false);
-  mostrarFormulario = signal(false);
+  usuarios   = signal<Usuario[]>([]);
+  loading    = signal(false);
+  accionando = signal<string>(''); 
+
+  // Signals para los filtros
+  searchText = signal('');
+  rolFilter  = signal('');
 
   searchCtrl = new FormControl('');
   rolCtrl    = new FormControl('');
@@ -289,75 +280,116 @@ export class AdminUsuariosComponent implements OnInit {
     { value: 'ROLE_ADMIN'      as RolEnum, label: 'Admin' }
   ];
 
-  nuevoUsuarioForm = new FormGroup({
-    nombre:   new FormControl('', [Validators.required, Validators.minLength(3)]),
-    email:    new FormControl('', [Validators.required, Validators.email]),
-    rol:      new FormControl<RolEnum>('ROLE_AUTORIDAD', Validators.required),
-    password: new FormControl('', [Validators.required, Validators.minLength(8)])
-  });
-
   rolesStats = computed(() => {
     const counts: Record<string, number> = {};
     this.usuarios().forEach(u => { counts[u.rol] = (counts[u.rol] ?? 0) + 1; });
     return this.roles.map(r => ({ rol: r.value, count: counts[r.value] ?? 0 }));
   });
 
-  usuariosFiltrados = computed(() => {
-    let data = this.usuarios();
-    const search = this.searchCtrl.value?.toLowerCase() ?? '';
-    const rol    = this.rolCtrl.value ?? '';
-    if (search) data = data.filter(u => u.nombre.toLowerCase().includes(search) || u.email.toLowerCase().includes(search));
-    if (rol)    data = data.filter(u => u.rol === rol);
-    return data;
+ usuariosFiltrados = computed(() => {
+    const s = this.searchText().toLowerCase();
+    const r = this.rolFilter();
+    return this.usuarios().filter(u => {
+      const matchSearch = !s ||
+        (u.fullName?.toLowerCase().includes(s) || u.email?.toLowerCase().includes(s));
+      const matchRol = !r || u.rol === r;
+      return matchSearch && matchRol;
+    });
   });
 
   ngOnInit() {
-    this.searchCtrl.valueChanges.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => {});
-    this.rolCtrl.valueChanges.subscribe(() => {});
+    this.cargarUsuarios();
+    
+    this.searchCtrl.valueChanges.pipe(
+      debounceTime(300),
+      distinctUntilChanged()
+    ).subscribe(val => {
+      this.searchText.set(val ?? '');
+      this.cdr.markForCheck();
+    });
+
+    this.rolCtrl.valueChanges.subscribe(val => {
+      this.rolFilter.set(val ?? '');
+      this.cdr.markForCheck();
+    });
+
   }
 
-  crearUsuario() {
-    if (this.nuevoUsuarioForm.invalid) return;
-    this.saving.set(true);
-    setTimeout(() => {
-      const val = this.nuevoUsuarioForm.value;
-      const nuevo: Usuario = {
-        id: Date.now().toString(),
-        nombre: val.nombre!,
-        email:  val.email!,
-        rol:    val.rol!,
-        estado: 'ACTIVO',
-        keycloakId: 'kc-' + Date.now()
-      };
-      this.usuarios.update(list => [...list, nuevo]);
-      this.saving.set(false);
-      this.mostrarFormulario.set(false);
-      this.nuevoUsuarioForm.reset({ rol: 'ROLE_AUTORIDAD' });
-      this.snack.open(`Usuario ${nuevo.nombre} creado correctamente`, 'OK', { duration: 3000 });
-    }, 600);
+   limpiarBusqueda() {
+    this.searchCtrl.setValue('');
+    this.searchText.set('');
+    this.cdr.markForCheck();
   }
 
-  editarRol(u: Usuario) {
-    const roles: RolEnum[] = ['ROLE_AUTORIDAD', 'ROLE_SUPERVISOR', 'ROLE_EMPRESA', 'ROLE_ADMIN'];
+  cargarUsuarios() {
+    this.loading.set(true);
+    this.usuarioService.listarTodos().subscribe({
+      next:  us => { 
+        this.usuarios.set(us); 
+        this.loading.set(false); 
+        this.cdr.markForCheck();
+      },
+      error: ()  => {
+        this.loading.set(false);
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  abrirModalNuevoUsuario() {
+    const ref = this.dialog.open(NuevoUsuarioModalComponent, {
+      width: '480px',
+      disableClose: true
+    });
+    ref.afterClosed().subscribe(result => {
+      if (result) this.cargarUsuarios();
+    });
+  }
+
+  abrirCambiarRol(u: Usuario) {
+    const roles: RolEnum[] = ['ROLE_AUTORIDAD','ROLE_SUPERVISOR','ROLE_EMPRESA','ROLE_ADMIN'];
     const idx = roles.indexOf(u.rol);
     const nuevoRol = roles[(idx + 1) % roles.length];
-    this.usuarios.update(list => list.map(x => x.id === u.id ? { ...x, rol: nuevoRol } : x));
-    this.snack.open(`Rol de ${u.nombre} cambiado a ${this.getRolLabel(nuevoRol)}`, 'OK', { duration: 3000 });
+
+    this.accionando.set(u.id + '_rol');
+    this.usuarioService.cambiarRol(u.id, { rol: nuevoRol }).subscribe({
+      next: updated => {
+        this.usuarios.update(list => list.map(x => x.id === u.id ? updated : x));
+        this.accionando.set('');
+        this.cdr.markForCheck();
+        this.snack.open(`Rol de ${u.fullName} → ${this.getRolLabel(nuevoRol)}`, 'OK', { duration: 3000 });
+      },
+      error: () => { this.accionando.set(''); this.cdr.markForCheck(); }
+    });
   }
 
   toggleEstado(u: Usuario) {
-    const nuevoEstado = u.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO';
-    this.usuarios.update(list => list.map(x => x.id === u.id ? { ...x, estado: nuevoEstado } : x));
-    this.snack.open(`${u.nombre} ${nuevoEstado === 'ACTIVO' ? 'activado' : 'desactivado'}`, 'OK', { duration: 3000 });
+    const nuevoEstado = u.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    this.accionando.set(u.id + '_estado');
+    this.usuarioService.cambiarEstado(u.id, { status: nuevoEstado }).subscribe({
+      next: updated => {
+        this.usuarios.update(list => list.map(x => x.id === u.id ? updated : x));
+        this.accionando.set('');
+        this.cdr.markForCheck();
+        this.snack.open(`${u.fullName} ${nuevoEstado === 'ACTIVE' ? 'activado' : 'desactivado'}`, 'OK', { duration: 3000 });
+      },
+      error: () => { this.accionando.set(''); this.cdr.markForCheck(); }
+    });
   }
 
   resetPassword(u: Usuario) {
-    this.snack.open(`Contraseña de ${u.nombre} reseteada — se envió email`, 'OK', { duration: 3000 });
+    this.accionando.set(u.id + '_pass');
+    this.usuarioService.resetPassword(u.id).subscribe({
+      next: () => {
+        this.accionando.set('');
+        this.cdr.markForCheck();
+        this.snack.open(`Contraseña de ${u.fullName} reseteada`, 'OK', { duration: 3000 });
+      },
+      error: () => { this.accionando.set(''); this.cdr.markForCheck(); }
+    });
   }
 
-  getRolLabel(rol: string)  {
-    return this.roles.find(r => r.value === rol)?.label ?? rol;
-  }
+  getRolLabel(rol: string)  { return this.roles.find(r => r.value === rol)?.label ?? rol; }
   getRolIcon(rol: string) {
     const icons: Record<string,string> = {
       ROLE_AUTORIDAD: 'account_balance', ROLE_SUPERVISOR: 'shield',
@@ -367,14 +399,20 @@ export class AdminUsuariosComponent implements OnInit {
   }
   getRolColor(rol: string) {
     const colors: Record<string,{bg:string;text:string}> = {
-      ROLE_AUTORIDAD: { bg: '#eef1f9', text: '#2d4a8a' },
-      ROLE_SUPERVISOR:{ bg: '#fff8e8', text: '#7a5c00' },
-      ROLE_EMPRESA:   { bg: '#eaf4ef', text: '#2d7a5a' },
-      ROLE_ADMIN:     { bg: '#fce8e8', text: '#791f1f' }
+      ROLE_AUTORIDAD:  { bg: '#eef1f9', text: '#2d4a8a' },
+      ROLE_SUPERVISOR: { bg: '#fff8e8', text: '#7a5c00' },
+      ROLE_EMPRESA:    { bg: '#eaf4ef', text: '#2d7a5a' },
+      ROLE_ADMIN:      { bg: '#fce8e8', text: '#791f1f' }
     };
     return colors[rol] ?? { bg: '#f1efea', text: '#555' };
   }
-  getInitials(nombre: string) {
-    return nombre.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
+  getInitials(fullName: string) {
+    console.log('fullName:' +fullName);
+     if (!fullName) return '?';
+    return fullName.split(' ')
+    .map(n => n[0] ?? '')
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
   }
 }

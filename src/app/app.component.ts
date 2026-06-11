@@ -308,13 +308,13 @@ export class AppComponent implements OnInit {
   private navItems: NavItem[] = [
     { label: 'Dashboard',    icon: 'dashboard',      route: '/dashboard',             roles: ['ROLE_AUTORIDAD'] },
     { label: 'Reportes',     icon: 'report',         route: '/reportes',              roles: ['ROLE_AUTORIDAD'] },
-    { label: 'Empresas',     icon: 'business',       route: '/admin/empresas',        roles: ['ROLE_AUTORIDAD'] },
+    { label: 'Empresas',     icon: 'business',       route: '/empresas',        roles: ['ROLE_AUTORIDAD'] },
     { label: 'Por validar',  icon: 'fact_check',     route: '/supervisor/pendientes', roles: ['ROLE_SUPERVISOR'] },
     { label: 'Mis trabajos', icon: 'engineering',    route: '/empresa/trabajos',      roles: ['ROLE_EMPRESA'] },
     { label: 'Dashboard',    icon: 'dashboard',      route: '/dashboard',             roles: ['ROLE_ADMIN'] },
     { label: 'Reportes',     icon: 'report',         route: '/reportes',              roles: ['ROLE_ADMIN'] },
     { label: 'Usuarios',     icon: 'people',         route: '/admin/usuarios',        roles: ['ROLE_ADMIN'] },
-    { label: 'Empresas',     icon: 'corporate_fare', route: '/admin/empresas',        roles: ['ROLE_ADMIN'] },
+    { label: 'Empresas',     icon: 'corporate_fare', route: '/empresas',        roles: ['ROLE_ADMIN'] },
     { label: 'Configuración',icon: 'settings',       route: '/admin/config',          roles: ['ROLE_ADMIN'] },
   ];
 

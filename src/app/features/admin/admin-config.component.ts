@@ -333,7 +333,7 @@ export class AdminConfigComponent {
   servicios = signal([
     { nombre: 'Keycloak',         descripcion: 'IAM · OAuth2/OIDC · :8080',          status: 'ok',   statusLabel: 'Activo'  },
     { nombre: 'Traefik',          descripcion: 'API Gateway · :80',                   status: 'ok',   statusLabel: 'Activo'  },
-    { nombre: 'Kafka (Upstash)',  descripcion: 'Mensajería asíncrona · 4 topics',     status: 'ok',   statusLabel: 'Activo'  },
+    { nombre: 'Kafka (RedPandas)',  descripcion: 'Mensajería asíncrona · 4 topics',     status: 'ok',   statusLabel: 'Activo'  },
     { nombre: 'Redis (Upstash)',  descripcion: 'Caché + sesiones + idempotencia',     status: 'ok',   statusLabel: 'Activo'  },
     { nombre: 'MongoDB Atlas',    descripcion: 'report-service · M0',                 status: 'ok',   statusLabel: 'Activo'  },
     { nombre: 'PostgreSQL (Neon)',descripcion: '4 schemas · company/user/worker/notif',status: 'ok',   statusLabel: 'Activo'  },
